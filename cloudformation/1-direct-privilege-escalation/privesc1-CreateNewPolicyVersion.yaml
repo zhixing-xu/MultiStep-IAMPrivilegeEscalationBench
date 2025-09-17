@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'IAM Privilege Escalation Scenario 1: CreateNewPolicyVersion - Allows privesc via iam:CreatePolicyVersion'
+
+Parameters:
+  AssumeRoleArn:
+    Type: String
+    Description: ARN of the principal that can assume the IAM role
+    Default: ""
+
+Conditions:
+  HasAssumeRoleArn: !Not [!Equals [!Ref AssumeRoleArn, ""]]
+
+Resources:
+  # IAM Policy that allows creating new policy versions
+  Privesc1Policy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: privesc1-CreateNewPolicyVersion
+      Path: /
+      Description: Allows privesc via iam:CreatePolicyVersion
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: iam:CreatePolicyVersion
+            Resource: "*"
+
+  # IAM Role that can be assumed for privilege escalation
+  Privesc1Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: privesc1-CreateNewPolicyVersion-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !If
+                - HasAssumeRoleArn
+                - !Ref AssumeRoleArn
+                - !Sub "${AWS::AccountId}"
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref Privesc1Policy
+
+  # IAM User for privilege escalation testing
+  Privesc1User:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: privesc1-CreateNewPolicyVersion-user
+      Path: /
+      ManagedPolicyArns:
+        - !Ref Privesc1Policy
+
+  # Access Key for the IAM User
+  Privesc1AccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref Privesc1User
+
+Outputs:
+  PolicyArn:
+    Description: ARN of the IAM policy that allows CreatePolicyVersion
+    Value: !Ref Privesc1Policy
+    Export:
+      Name: !Sub "${AWS::StackName}-PolicyArn"
+
+  RoleArn:
+    Description: ARN of the IAM role for privilege escalation
+    Value: !GetAtt Privesc1Role.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-RoleArn"
+
+  UserArn:
+    Description: ARN of the IAM user for privilege escalation testing
+    Value: !GetAtt Privesc1User.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-UserArn"
+
+  AccessKeyId:
+    Description: Access Key ID for the IAM user
+    Value: !Ref Privesc1AccessKey
+    Export:
+      Name: !Sub "${AWS::StackName}-AccessKeyId"
+
+  SecretAccessKey:
+    Description: Secret Access Key for the IAM user (use with caution)
+    Value: !GetAtt Privesc1AccessKey.SecretAccessKey
+    Export:
+      Name: !Sub "${AWS::StackName}-SecretAccessKey"
