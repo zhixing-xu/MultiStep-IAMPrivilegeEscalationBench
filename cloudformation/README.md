@@ -16,11 +16,9 @@ Templates that demonstrate direct privilege escalation without requiring transit
 - No role assumption required
 - Direct IAM action abuse
 
-**Examples:**
-- `iam:CreatePolicyVersion` - Create new versions of managed policies
-- `iam:SetDefaultPolicyVersion` - Set existing policy versions as default
-- `iam:AttachUserPolicy` - Attach policies directly to users
-- `iam:PutUserPolicy` - Create inline policies on users
+| File | Description | Tested Actions |
+|------|-------------|----------------|
+| `PE1-1-DirectInlinePermissionMutation.yaml` | IAM principals that can add inline policies to themselves | `iam:PutRolePolicy`, `iam:PutUserPolicy` |
 
 ### 2. Transitive Privilege Escalation (`2-transitive-privilege-escalation/`)
 
@@ -80,11 +78,11 @@ Templates that require multiple rounds of policy updates or modifications to ach
 3. Deploy using AWS CLI:
 
 ```bash
-aws cloudformation create-stack \
+aws cloudformation deploy \
+  --template-file template-name.yaml \
   --stack-name privilege-escalation-test \
-  --template-body file://template-name.yaml \
-  --parameters ParameterKey=AssumeRoleArn,ParameterValue=arn:aws:iam::123456789012:user/testuser \
-  --capabilities CAPABILITY_NAMED_IAM
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region us-east-1
 ```
 
 ### Cleanup
