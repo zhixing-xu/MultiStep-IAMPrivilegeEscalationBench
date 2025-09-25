@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE1-1: Direct Inline Permission Mutation - IAM principals that can escalate privileges by adding inline policies to themselves'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe1-1'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # IAM Role that can put inline policies on itself
+  PE11PutRolePolicyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-putrolepolicy-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'SelfPutRolePolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:PutRolePolicy'
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${TestPrefix}-putrolepolicy-role'
+
+  # IAM User that can put inline policies on itself
+  PE11PutUserPolicyUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestPrefix}-putuserpolicy-user'
+      Policies:
+        - PolicyName: 'SelfPutUserPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:PutUserPolicy'
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:user/${TestPrefix}-putuserpolicy-user'
+
+Outputs:
+  PutRolePolicyRoleArn:
+    Description: 'ARN of the PE role that can add/update inline policies to itself'
+    Value: !GetAtt PE11PutRolePolicyRole.Arn
+
+  PutUserPolicyUserArn:
+    Description: 'ARN of the PE user that can add/update inline policies to itself'
+    Value: !GetAtt PE11PutUserPolicyUser.Arn
