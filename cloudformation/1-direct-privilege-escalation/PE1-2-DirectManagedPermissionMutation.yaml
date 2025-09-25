@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE1-2: Direct Managed Permission Mutation - IAM principals that can escalate privileges by mutating managed policies or policy attachments'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe1-2'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # Test managed policy for CreatePolicyVersion scenario
+  TestManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub '${TestPrefix}-test-managed-policy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: 's3:GetObject'
+            Resource: 'arn:aws:s3:::example-bucket/*'
+
+  # IAM Role that can attach managed policies to itself
+  PE12AttachRolePolicyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-attachrolepolicy-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'SelfAttachRolePolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:AttachRolePolicy'
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${TestPrefix}-attachrolepolicy-role'
+
+  # IAM User that can attach managed policies to itself
+  PE12AttachUserPolicyUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestPrefix}-attachuserpolicy-user'
+      Policies:
+        - PolicyName: 'SelfAttachUserPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:AttachUserPolicy'
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:user/${TestPrefix}-attachuserpolicy-user'
+
+  # Test group for AttachGroupPolicy scenario
+  TestGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: !Sub '${TestPrefix}-test-group'
+
+  # IAM User that can attach managed policies to groups and add itself to groups
+  PE12AttachGroupPolicyUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestPrefix}-attachgrouppolicy-user'
+      Groups:
+        - !Ref TestGroup
+      Policies:
+        - PolicyName: 'SelfAttachGroupPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:AttachGroupPolicy'
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:group/${TestPrefix}-test-group'
+
+  # IAM User that can create new versions of managed policies
+  PE12CreatePolicyVersionUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestPrefix}-createpolicyversion-user'
+      ManagedPolicyArns:
+        - !Ref TestManagedPolicy
+      Policies:
+        - PolicyName: 'SelfCreatePolicyVersion'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:CreatePolicyVersion'
+                Resource: !Ref TestManagedPolicy
+              - Effect: Allow
+                Action: 'iam:SetDefaultPolicyVersion'
+                Resource: !Ref TestManagedPolicy
+
+Outputs:
+  TestManagedPolicyArn:
+    Description: 'ARN of the test managed policy for CreatePolicyVersion scenario'
+    Value: !Ref TestManagedPolicy
+
+  AttachRolePolicyRoleArn:
+    Description: 'ARN of the PE role that can attach managed policies to itself'
+    Value: !GetAtt PE12AttachRolePolicyRole.Arn
+
+  AttachUserPolicyUserArn:
+    Description: 'ARN of the PE user that can attach managed policies to itself'
+    Value: !GetAtt PE12AttachUserPolicyUser.Arn
+
+  AttachGroupPolicyUserArn:
+    Description: 'ARN of the PE user that can attach managed policies to groups'
+    Value: !GetAtt PE12AttachGroupPolicyUser.Arn
+
+  CreatePolicyVersionUserArn:
+    Description: 'ARN of the PE user that can create new policy versions'
+    Value: !GetAtt PE12CreatePolicyVersionUser.Arn
+
+  TestGroupArn:
+    Description: 'ARN of the test group for AttachGroupPolicy scenario'
+    Value: !GetAtt TestGroup.Arn

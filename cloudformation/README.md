@@ -19,6 +19,7 @@ Templates that demonstrate direct privilege escalation without requiring transit
 | File | Description | Tested Actions |
 |------|-------------|----------------|
 | `PE1-1-DirectInlinePermissionMutation.yaml` | IAM principals that can add inline policies to themselves | `iam:PutRolePolicy`, `iam:PutUserPolicy` |
+| `PE1-2-DirectManagedPermissionMutation.yaml` | IAM principals that can escalate via managed policy mutations | `iam:AttachRolePolicy`, `iam:AttachUserPolicy`, `iam:AttachGroupPolicy`, `iam:CreatePolicyVersion` |
 
 ### 2. Transitive Privilege Escalation (`2-transitive-privilege-escalation/`)
 
