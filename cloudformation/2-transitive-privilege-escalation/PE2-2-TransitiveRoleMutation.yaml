@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE2-2: Transitive Permission Mutation - r1 can assume r2, r2 can assume r3 and r4, r3 can edit inline policy for r1, r4 can attach managed policy to r1'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe2-2'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # r4: Role that can attach managed policies to r1
+  AttachPolicyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r4-attachpolicy'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt IntermediateRole.Arn
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AttachManagedPolicyToR1'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:AttachRolePolicy'
+                Resource: !GetAtt InitialRole.Arn
+
+  # r3: Role that can edit inline policy for r1
+  EditInlinePolicyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r3-editinline'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt IntermediateRole.Arn
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'PutRolePolicyToR1'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:PutRolePolicy'
+                Resource: !GetAtt InitialRole.Arn
+
+  # r2: Intermediate role (can assume r3 and r4)
+  IntermediateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r2-intermediate'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt InitialRole.Arn
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AssumeR3AndR4'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource:
+                  - !GetAtt EditInlinePolicyRole.Arn
+                  - !GetAtt AttachPolicyRole.Arn
+
+  # r1: Initial role (can assume r2)
+  InitialRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r1-initial'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AssumeR2'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource: !GetAtt IntermediateRole.Arn
+
+Outputs:
+  InitialRoleArn:
+    Description: 'ARN of r1 - the initial role'
+    Value: !GetAtt InitialRole.Arn
+
+  IntermediateRoleArn:
+    Description: 'ARN of r2 - the intermediate role'
+    Value: !GetAtt IntermediateRole.Arn
+
+  EditInlinePolicyRoleArn:
+    Description: 'ARN of r3 - can edit inline policy for r1'
+    Value: !GetAtt EditInlinePolicyRole.Arn
+
+  AttachPolicyRoleArn:
+    Description: 'ARN of r4 - can attach managed policy to r1'
+    Value: !GetAtt AttachPolicyRole.Arn
