@@ -30,10 +30,10 @@ Templates that require role assumption or user creation as an intermediate step 
 - Requires role assumption or user manipulation
 - Indirect privilege acquisition
 
-**Examples:**
-- `iam:AssumeRole` with overprivileged roles
-- `iam:CreateUser` + `iam:AttachUserPolicy`
-- `iam:AddUserToGroup` with privileged groups
+| File | Description | Escalation Path |
+|------|-------------|-----------------|
+| `PE2-1-TransitiveAdminRoleAssumption.yaml` | Role chain leading to admin privileges | r1 → AssumeRole(r2) → AssumeRole(r3-admin) |
+| `PE2-2-TransitiveRolePermissionMutation.yaml` | Role chain enabling permission mutation on initial role | r1 → AssumeRole(r2) → AssumeRole(r3/r4) → PutRolePolicy/AttachRolePolicy(r1) |
 
 ### 3. Service PassRole Privilege Escalation (`3-service-passrole-escalation/`)
 
