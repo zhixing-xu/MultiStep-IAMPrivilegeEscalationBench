@@ -18,7 +18,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !GetAtt IntermediateRole.Arn
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AdministratorAccess'
@@ -33,7 +33,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !GetAtt InitialRole.Arn
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
             Action: sts:AssumeRole
       Policies:
         - PolicyName: 'AssumeR3'
@@ -42,7 +42,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: 'sts:AssumeRole'
-                Resource: !GetAtt AdminRole.Arn
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${TestPrefix}-r3-admin'
 
   # r1: Initial role (can assume r2)
   InitialRole:
@@ -63,7 +63,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: 'sts:AssumeRole'
-                Resource: !GetAtt IntermediateRole.Arn
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${TestPrefix}-r2-intermediate'
 
 Outputs:
   InitialRoleArn:

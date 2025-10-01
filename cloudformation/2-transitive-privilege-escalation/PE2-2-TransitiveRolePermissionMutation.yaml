@@ -18,7 +18,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !GetAtt IntermediateRole.Arn
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
             Action: sts:AssumeRole
       Policies:
         - PolicyName: 'AttachManagedPolicyToR1'
@@ -27,7 +27,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: 'iam:AttachRolePolicy'
-                Resource: !GetAtt InitialRole.Arn
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${TestPrefix}-r1-initial'
 
   # r3: Role that can edit inline policy for r1
   EditInlinePolicyRole:
@@ -39,7 +39,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !GetAtt IntermediateRole.Arn
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
             Action: sts:AssumeRole
       Policies:
         - PolicyName: 'PutRolePolicyToR1'
@@ -48,7 +48,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: 'iam:PutRolePolicy'
-                Resource: !GetAtt InitialRole.Arn
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${TestPrefix}-r1-initial'
 
   # r2: Intermediate role (can assume r3 and r4)
   IntermediateRole:
@@ -60,7 +60,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !GetAtt InitialRole.Arn
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
             Action: sts:AssumeRole
       Policies:
         - PolicyName: 'AssumeR3AndR4'
@@ -70,8 +70,8 @@ Resources:
               - Effect: Allow
                 Action: 'sts:AssumeRole'
                 Resource:
-                  - !GetAtt EditInlinePolicyRole.Arn
-                  - !GetAtt AttachPolicyRole.Arn
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/${TestPrefix}-r3-editinline'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/${TestPrefix}-r4-attachpolicy'
 
   # r1: Initial role (can assume r2)
   InitialRole:
@@ -92,7 +92,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: 'sts:AssumeRole'
-                Resource: !GetAtt IntermediateRole.Arn
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${TestPrefix}-r2-intermediate'
 
 Outputs:
   InitialRoleArn:
