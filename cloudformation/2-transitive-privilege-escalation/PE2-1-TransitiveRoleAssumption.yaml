@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE2-1: Transitive Role Assumption - r1 can assume r2, r2 can assume r3, r3 has admin permissions'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe2-1'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # r3: Admin role (the target with elevated privileges)
+  AdminRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r3-admin'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt IntermediateRole.Arn
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+  # r2: Intermediate role (can assume r3)
+  IntermediateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r2-intermediate'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt InitialRole.Arn
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AssumeR3'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource: !GetAtt AdminRole.Arn
+
+  # r1: Initial role (can assume r2)
+  InitialRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r1-initial'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AssumeR2'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource: !GetAtt IntermediateRole.Arn
+
+Outputs:
+  InitialRoleArn:
+    Description: 'ARN of r1 - the initial role with limited privileges'
+    Value: !GetAtt InitialRole.Arn
+
+  IntermediateRoleArn:
+    Description: 'ARN of r2 - the intermediate role'
+    Value: !GetAtt IntermediateRole.Arn
+
+  AdminRoleArn:
+    Description: 'ARN of r3 - the admin role with elevated privileges'
+    Value: !GetAtt AdminRole.Arn
