@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE4-1: Iterative Trust Policy Modification - r1 can assume r2, r2 can assume r4, r4 can update r5 trust policy, r2 has sts:AssumeRole for r5 (blocked by trust), r5 can read S3 bucket'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe4-1'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # S3 bucket with sensitive data
+  SensitiveDataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${TestPrefix}-sensitive-data-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # r5: Role that can read from S3 bucket
+  # Note: Trust policy allows root by default. To simulate the blocked scenario,
+  # manually add a Deny statement for r2 after stack creation:
+  # aws iam update-assume-role-policy --role-name pe4-1-r5-dataaccess --policy-document file://deny-r2-policy.json
+  DataAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r5-dataaccess'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'ReadSensitiveData'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                Resource:
+                  - !GetAtt SensitiveDataBucket.Arn
+                  - !Sub '${SensitiveDataBucket.Arn}/*'
+
+  # r4: Role that can update trust policy of r5
+  TrustPolicyModifierRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r4-trustmodifier'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'UpdateR5TrustPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:UpdateAssumeRolePolicy'
+                Resource: !GetAtt DataAccessRole.Arn
+
+  # r2: Intermediate role (can assume r4, has sts:AssumeRole for r5 but blocked by r5's trust)
+  IntermediateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r2-intermediate'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AssumeR4AndR5'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource:
+                  - !GetAtt TrustPolicyModifierRole.Arn
+                  - !GetAtt DataAccessRole.Arn
+
+  # r1: Initial role (can assume r2)
+  InitialRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r1-initial'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AssumeR2'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource: !GetAtt IntermediateRole.Arn
+
+Outputs:
+  InitialRoleArn:
+    Description: 'ARN of r1 - the initial role'
+    Value: !GetAtt InitialRole.Arn
+
+  IntermediateRoleArn:
+    Description: 'ARN of r2 - the intermediate role'
+    Value: !GetAtt IntermediateRole.Arn
+
+  TrustPolicyModifierRoleArn:
+    Description: 'ARN of r4 - can update trust policy of r5'
+    Value: !GetAtt TrustPolicyModifierRole.Arn
+
+  DataAccessRoleArn:
+    Description: 'ARN of r5 - can read from S3 bucket'
+    Value: !GetAtt DataAccessRole.Arn
+
+  SensitiveDataBucketName:
+    Description: 'Name of the S3 bucket with sensitive data'
+    Value: !Ref SensitiveDataBucket
+
+  EscalationPath:
+    Description: 'Privilege escalation path'
+    Value: 'r1 → assume r2 → assume r4 → update r5 trust policy → r2 assume r5 → read S3 bucket'
