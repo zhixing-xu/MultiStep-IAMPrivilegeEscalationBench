@@ -59,10 +59,9 @@ Templates that require multiple rounds of policy updates or modifications to ach
 - Gradual privilege acquisition
 - Complex escalation chains
 
-**Examples:**
-- Multiple `iam:CreatePolicyVersion` iterations
-- Combination of policy attachments and modifications
-- Resource constraint bypasses through multiple updates
+| File | Description | Escalation Path |
+|------|-------------|-----------------|
+| `PE4-1-IterativeTrustPolicyModification.yaml` | Trust policy modification to enable blocked role assumption | r1 → assume r2 → assume r4 → update r5 trust policy → r2 assume r5 → access S3 bucket |
 
 ## Usage Instructions
 
