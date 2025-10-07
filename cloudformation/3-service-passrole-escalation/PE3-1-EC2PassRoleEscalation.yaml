@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE3-1: EC2 PassRole Escalation - r1 can pass r2 to EC2 instance to gain admin privileges'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe3-1'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # r2: Admin role that will be passed to EC2 instance
+  AdminInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r2-admin-instance-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+  # Instance profile for r2
+  AdminInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub '${TestPrefix}-r2-admin-instance-profile'
+      Roles:
+        - !Ref AdminInstanceRole
+
+  # r1: Initial role with PassRole and RunInstances permissions
+  InitialRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r1-initial'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'PassRoleAndRunInstances'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:RunInstances
+                  - iam:PassRole
+                Resource: '*'
+
+Outputs:
+  InitialRoleArn:
+    Description: 'ARN of r1 - the initial role with PassRole and RunInstances permissions'
+    Value: !GetAtt InitialRole.Arn
+
+  AdminInstanceRoleArn:
+    Description: 'ARN of r2 - the admin role that can be passed to EC2 instances'
+    Value: !GetAtt AdminInstanceRole.Arn
+
+  AdminInstanceProfileArn:
+    Description: 'ARN of the instance profile for r2'
+    Value: !GetAtt AdminInstanceProfile.Arn
+
+  EscalationPath:
+    Description: 'How to escalate privileges'
+    Value: 'r1 can launch an EC2 instance with r2 (admin) instance profile, then access the instance metadata to retrieve r2 credentials'

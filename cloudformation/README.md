@@ -44,11 +44,9 @@ Templates that abuse AWS service integration with IAM roles through the `iam:Pas
 - Leverages AWS service functionality
 - Service acts on behalf of the attacker
 
-**Examples:**
-- Lambda function creation with privileged execution role
-- EC2 instance launch with privileged instance profile
-- Glue job creation with administrative role
-- CodeBuild project with elevated permissions
+| File | Description | Escalation Path |
+|------|-------------|-----------------|
+| `PE3-1-EC2PassRoleEscalation.yaml` | EC2 instance launch with admin instance profile | r1 (PassRole + RunInstances) → Launch EC2 with r2 profile → Access instance metadata → Retrieve r2 (admin) credentials |
 
 ### 4. Iterative Policy Escalation (`4-iterative-policy-escalation/`)
 
