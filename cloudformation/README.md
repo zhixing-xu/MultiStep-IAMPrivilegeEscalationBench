@@ -20,6 +20,11 @@ Templates that demonstrate direct privilege escalation without requiring transit
 |------|-------------|----------------|
 | `PE1-1-DirectInlinePermissionMutation.yaml` | IAM principals that can add inline policies to themselves | `iam:PutRolePolicy`, `iam:PutUserPolicy` |
 | `PE1-2-DirectManagedPermissionMutation.yaml` | IAM principals that can escalate via managed policy mutations | `iam:AttachRolePolicy`, `iam:AttachUserPolicy`, `iam:AttachGroupPolicy`, `iam:CreatePolicyVersion` |
+| `PE1-3-CreateAccessKeyEscalation.yaml` | IAM user that can create access keys for a privileged user | `iam:CreateAccessKey` |
+| `PE1-4-CreateLoginProfileEscalation.yaml` | IAM user that can create console login for a privileged user | `iam:CreateLoginProfile` |
+| `PE1-5-UpdateLoginProfileEscalation.yaml` | IAM user that can update console password for a privileged user | `iam:UpdateLoginProfile` |
+| `PE1-6-AddUserToGroupEscalation.yaml` | IAM user that can add themselves to an admin group | `iam:AddUserToGroup` |
+| `PE1-7-PutGroupPolicyEscalation.yaml` | IAM user that can add inline policies to a group they belong to | `iam:PutGroupPolicy` |
 
 ### 2. Transitive Privilege Escalation (`2-transitive-privilege-escalation/`)
 

@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE1-4: CreateLoginProfile Escalation - IAM user that can escalate privileges by creating console login credentials for a more privileged user'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe1-4'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # Target admin user - the user whose console access will be created
+  AdminUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestPrefix}-admin-user'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+  # Attacker user that can create login profile for the admin user
+  PE14CreateLoginProfileUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestPrefix}-createloginprofile-user'
+      Policies:
+        - PolicyName: 'CreateLoginProfileOnAdmin'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:CreateLoginProfile'
+                Resource: !GetAtt AdminUser.Arn
+
+Outputs:
+  AdminUserArn:
+    Description: 'ARN of the target admin user'
+    Value: !GetAtt AdminUser.Arn
+
+  CreateLoginProfileUserArn:
+    Description: 'ARN of the PE user that can create login profile for the admin user'
+    Value: !GetAtt PE14CreateLoginProfileUser.Arn

@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE1-6: AddUserToGroup Escalation - IAM user that can escalate privileges by adding themselves to an admin group'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe1-6'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # Admin group with full privileges
+  AdminGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: !Sub '${TestPrefix}-admin-group'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+  # Attacker user that can add themselves to the admin group
+  PE16AddUserToGroupUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestPrefix}-addusertogroup-user'
+      Policies:
+        - PolicyName: 'AddSelfToAdminGroup'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:AddUserToGroup'
+                Resource: !GetAtt AdminGroup.Arn
+
+Outputs:
+  AdminGroupArn:
+    Description: 'ARN of the admin group'
+    Value: !GetAtt AdminGroup.Arn
+
+  AddUserToGroupUserArn:
+    Description: 'ARN of the PE user that can add themselves to the admin group'
+    Value: !GetAtt PE16AddUserToGroupUser.Arn

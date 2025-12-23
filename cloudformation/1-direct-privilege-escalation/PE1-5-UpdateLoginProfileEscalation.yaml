@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE1-5: UpdateLoginProfile Escalation - IAM user that can escalate privileges by updating console login password for a more privileged user'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe1-5'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # Target admin user - the user whose password will be changed
+  AdminUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestPrefix}-admin-user'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+      LoginProfile:
+        Password: !Sub '${TestPrefix}-InitialPassword123!'
+        PasswordResetRequired: false
+
+  # Attacker user that can update login profile for the admin user
+  PE15UpdateLoginProfileUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestPrefix}-updateloginprofile-user'
+      Policies:
+        - PolicyName: 'UpdateLoginProfileOnAdmin'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:UpdateLoginProfile'
+                Resource: !GetAtt AdminUser.Arn
+
+Outputs:
+  AdminUserArn:
+    Description: 'ARN of the target admin user (has existing login profile)'
+    Value: !GetAtt AdminUser.Arn
+
+  UpdateLoginProfileUserArn:
+    Description: 'ARN of the PE user that can update login profile for the admin user'
+    Value: !GetAtt PE15UpdateLoginProfileUser.Arn
