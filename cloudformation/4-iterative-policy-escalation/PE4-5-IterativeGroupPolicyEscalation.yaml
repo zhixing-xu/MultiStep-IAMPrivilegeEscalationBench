@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE4-5: Iterative Group Policy Escalation - user1 assumes r1, r1 assumes r2, r2 can put admin policy on group that user1 belongs to'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe4-5'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # Group that user1 belongs to (initially has no policies)
+  TargetGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: !Sub '${TestPrefix}-target-group'
+
+  # r2: Role that can put policies on the target group
+  GroupPolicyModifierRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r2-group-modifier'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'PutGroupPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'iam:PutGroupPolicy'
+                  - 'iam:AttachGroupPolicy'
+                Resource: !GetAtt TargetGroup.Arn
+
+  # r1: Intermediate role that can assume r2
+  IntermediateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r1-intermediate'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AssumeR2'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource: !GetAtt GroupPolicyModifierRole.Arn
+
+  # user1: Initial user that belongs to target group and can assume r1
+  InitialUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestPrefix}-user1-initial'
+      Groups:
+        - !Ref TargetGroup
+      Policies:
+        - PolicyName: 'AssumeR1'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource: !GetAtt IntermediateRole.Arn
+
+Outputs:
+  InitialUserArn:
+    Description: 'ARN of user1 - belongs to target group and can assume r1'
+    Value: !GetAtt InitialUser.Arn
+
+  IntermediateRoleArn:
+    Description: 'ARN of r1 - can assume r2'
+    Value: !GetAtt IntermediateRole.Arn
+
+  GroupPolicyModifierRoleArn:
+    Description: 'ARN of r2 - can put policies on target group'
+    Value: !GetAtt GroupPolicyModifierRole.Arn
+
+  TargetGroupArn:
+    Description: 'ARN of the target group (user1 is a member)'
+    Value: !GetAtt TargetGroup.Arn
+
+  EscalationPath:
+    Description: 'Privilege escalation path'
+    Value: 'user1 → assume r1 → assume r2 → put admin policy on target group → user1 (group member) gains admin permissions'

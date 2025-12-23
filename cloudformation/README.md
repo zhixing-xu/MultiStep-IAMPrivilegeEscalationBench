@@ -75,6 +75,9 @@ Templates that require multiple rounds of policy updates or modifications to ach
 |------|-------------|-----------------|
 | `PE4-1-IterativeTrustPolicyModification.yaml` | Trust policy modification to enable blocked role assumption | r1 → assume r2 → assume r4 → update r5 trust policy → r2 assume r5 → access S3 bucket |
 | `PE4-2-IterativePassRoleEscalation.yaml` | Trust policy modification to enable PassRole to Lambda | r1 → assume r2 → assume r3 → update r4 trust policy to allow Lambda → r2 PassRole r4 to Lambda → invoke with admin privileges |
+| `PE4-3-IterativePermissionBoundaryRemoval.yaml` | Permission boundary removal to unlock admin permissions | r1 → assume r2 → assume r3 → delete r4 permission boundary → r2 assume r4 → full admin (unbounded) |
+| `PE4-4-IterativePolicyVersionEscalation.yaml` | Policy version creation to escalate attached policy | r1 → assume r2 → assume r3 → create admin policy version → set default → r2 gains admin |
+| `PE4-5-IterativeGroupPolicyEscalation.yaml` | Group policy modification to escalate group members | user1 → assume r1 → assume r2 → put admin policy on group → user1 (member) gains admin |
 
 ## Usage Instructions
 

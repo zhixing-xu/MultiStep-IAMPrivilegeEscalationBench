@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE4-3: Iterative Permission Boundary Removal - r1 assumes r2, r2 assumes r3, r3 can delete permission boundary from r4, enabling r4 to use its full admin permissions'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe4-3'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # Restrictive permission boundary that blocks admin actions
+  RestrictivePermissionBoundary:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub '${TestPrefix}-restrictive-boundary'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:GetObject'
+              - 's3:ListBucket'
+            Resource: '*'
+
+  # r4: Role with admin policy but restricted by permission boundary
+  # After boundary removal, this role gains full admin access
+  BoundedAdminRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r4-bounded-admin'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+      PermissionsBoundary: !Ref RestrictivePermissionBoundary
+
+  # r3: Role that can delete permission boundary from r4
+  BoundaryModifierRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r3-boundary-modifier'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'DeletePermissionBoundary'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:DeleteRolePermissionsBoundary'
+                Resource: !GetAtt BoundedAdminRole.Arn
+
+  # r2: Intermediate role that can assume r3 and r4
+  IntermediateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r2-intermediate'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AssumeR3AndR4'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource:
+                  - !GetAtt BoundaryModifierRole.Arn
+                  - !GetAtt BoundedAdminRole.Arn
+
+  # r1: Initial role (can only assume r2)
+  InitialRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r1-initial'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AssumeR2'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource: !GetAtt IntermediateRole.Arn
+
+Outputs:
+  InitialRoleArn:
+    Description: 'ARN of r1 - the initial role'
+    Value: !GetAtt InitialRole.Arn
+
+  IntermediateRoleArn:
+    Description: 'ARN of r2 - can assume r3 and r4'
+    Value: !GetAtt IntermediateRole.Arn
+
+  BoundaryModifierRoleArn:
+    Description: 'ARN of r3 - can delete permission boundary from r4'
+    Value: !GetAtt BoundaryModifierRole.Arn
+
+  BoundedAdminRoleArn:
+    Description: 'ARN of r4 - has admin policy but restricted by permission boundary'
+    Value: !GetAtt BoundedAdminRole.Arn
+
+  PermissionBoundaryArn:
+    Description: 'ARN of the restrictive permission boundary'
+    Value: !Ref RestrictivePermissionBoundary
+
+  EscalationPath:
+    Description: 'Privilege escalation path'
+    Value: 'r1 → assume r2 → assume r3 → delete r4 permission boundary → r2 assume r4 → full admin access (no longer bounded)'
