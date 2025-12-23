@@ -52,6 +52,13 @@ Templates that abuse AWS service integration with IAM roles through the `iam:Pas
 | File | Description | Escalation Path |
 |------|-------------|-----------------|
 | `PE3-1-EC2PassRoleEscalation.yaml` | EC2 instance launch with admin instance profile | r1 (PassRole + RunInstances) → Launch EC2 with r2 profile → Access instance metadata → Retrieve r2 (admin) credentials |
+| `PE3-2-LambdaPassRoleEscalation.yaml` | Lambda function creation with admin role | r1 (PassRole + CreateFunction + InvokeFunction) → Create Lambda with r2 role → Invoke to execute code with admin privileges |
+| `PE3-3-LambdaEventTriggerEscalation.yaml` | Lambda with event source trigger | r1 (PassRole + CreateFunction + CreateEventSourceMapping) → Create Lambda with r2 role → Trigger via event source with admin privileges |
+| `PE3-4-GlueDevEndpointEscalation.yaml` | Glue DevEndpoint with admin role | r1 (PassRole + CreateDevEndpoint) → Create Glue DevEndpoint with r2 role → SSH to execute commands with admin privileges |
+| `PE3-5-CloudFormationPassRoleEscalation.yaml` | CloudFormation stack with admin role | r1 (PassRole + CreateStack) → Create stack with r2 role → Stack creates resources with admin privileges |
+| `PE3-6-CodeBuildPassRoleEscalation.yaml` | CodeBuild project with admin role | r1 (PassRole + CreateProject + StartBuild) → Create CodeBuild with r2 role → Execute build commands with admin privileges |
+| `PE3-7-SageMakerNotebookEscalation.yaml` | SageMaker notebook with admin role | r1 (PassRole + CreateNotebookInstance) → Create notebook with r2 role → Execute code with admin privileges |
+| `PE3-8-DataPipelinePassRoleEscalation.yaml` | DataPipeline with admin role | r1 (PassRole + CreatePipeline) → Create pipeline with r2 role → Execute shell commands with admin privileges |
 
 ### 4. Iterative Policy Escalation (`4-iterative-policy-escalation/`)
 

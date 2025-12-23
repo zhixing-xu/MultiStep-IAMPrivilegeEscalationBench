@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE3-7: SageMaker Notebook Escalation - r1 can pass r2 to SageMaker notebook to gain admin privileges'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe3-7'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # r2: Admin role that will be passed to SageMaker notebook
+  AdminSageMakerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r2-admin-sagemaker-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+  # r1: Initial role with PassRole and SageMaker permissions
+  InitialRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r1-initial'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'PassRoleAndSageMaker'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:PassRole'
+                Resource: !GetAtt AdminSageMakerRole.Arn
+              - Effect: Allow
+                Action:
+                  - 'sagemaker:CreateNotebookInstance'
+                  - 'sagemaker:CreatePresignedNotebookInstanceUrl'
+                Resource: '*'
+
+Outputs:
+  InitialRoleArn:
+    Description: 'ARN of r1 - the initial role with PassRole and SageMaker permissions'
+    Value: !GetAtt InitialRole.Arn
+
+  AdminSageMakerRoleArn:
+    Description: 'ARN of r2 - the admin role that can be passed to SageMaker notebooks'
+    Value: !GetAtt AdminSageMakerRole.Arn
+
+  EscalationPath:
+    Description: 'How to escalate privileges'
+    Value: 'r1 creates a SageMaker notebook with r2 (admin) role, generates presigned URL, and executes arbitrary code with admin privileges'

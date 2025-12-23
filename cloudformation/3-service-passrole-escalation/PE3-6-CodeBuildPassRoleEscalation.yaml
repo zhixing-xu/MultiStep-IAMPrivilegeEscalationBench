@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE3-6: CodeBuild PassRole Escalation - r1 can pass r2 to CodeBuild project to gain admin privileges'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe3-6'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # r2: Admin role that will be passed to CodeBuild
+  AdminCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r2-admin-codebuild-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+  # r1: Initial role with PassRole and CodeBuild permissions
+  InitialRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r1-initial'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'PassRoleAndCodeBuild'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:PassRole'
+                Resource: !GetAtt AdminCodeBuildRole.Arn
+              - Effect: Allow
+                Action:
+                  - 'codebuild:CreateProject'
+                  - 'codebuild:StartBuild'
+                  - 'codebuild:StartBuildBatch'
+                Resource: '*'
+
+Outputs:
+  InitialRoleArn:
+    Description: 'ARN of r1 - the initial role with PassRole and CodeBuild permissions'
+    Value: !GetAtt InitialRole.Arn
+
+  AdminCodeBuildRoleArn:
+    Description: 'ARN of r2 - the admin role that can be passed to CodeBuild'
+    Value: !GetAtt AdminCodeBuildRole.Arn
+
+  EscalationPath:
+    Description: 'How to escalate privileges'
+    Value: 'r1 creates a CodeBuild project with r2 (admin) role, starts a build that executes arbitrary commands with admin privileges'
