@@ -1,0 +1,117 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE4-2: Iterative PassRole Escalation - r1 assumes r2, r2 assumes r3, r3 modifies r4 trust policy to allow Lambda, then r2 can PassRole r4 to Lambda'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe4-2'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # r4: Admin role that will be passed to Lambda after trust policy modification
+  # Initially only trusts account root, r3 will modify it to also trust lambda.amazonaws.com
+  AdminLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r4-admin-lambda'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+  # r3: Role that can modify r4's trust policy
+  TrustPolicyModifierRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r3-trustmodifier'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'UpdateR4TrustPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:UpdateAssumeRolePolicy'
+                Resource: !GetAtt AdminLambdaRole.Arn
+
+  # r2: Intermediate role with PassRole + Lambda permissions and ability to assume r3
+  IntermediateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r2-intermediate'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AssumeR3AndLambdaPassRole'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource: !GetAtt TrustPolicyModifierRole.Arn
+              - Effect: Allow
+                Action: 'iam:PassRole'
+                Resource: !GetAtt AdminLambdaRole.Arn
+              - Effect: Allow
+                Action:
+                  - 'lambda:CreateFunction'
+                  - 'lambda:InvokeFunction'
+                Resource: '*'
+
+  # r1: Initial role (can only assume r2)
+  InitialRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r1-initial'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AssumeR2'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource: !GetAtt IntermediateRole.Arn
+
+Outputs:
+  InitialRoleArn:
+    Description: 'ARN of r1 - the initial role'
+    Value: !GetAtt InitialRole.Arn
+
+  IntermediateRoleArn:
+    Description: 'ARN of r2 - has PassRole + Lambda but r4 does not trust Lambda yet'
+    Value: !GetAtt IntermediateRole.Arn
+
+  TrustPolicyModifierRoleArn:
+    Description: 'ARN of r3 - can modify r4 trust policy'
+    Value: !GetAtt TrustPolicyModifierRole.Arn
+
+  AdminLambdaRoleArn:
+    Description: 'ARN of r4 - admin role, initially does not trust Lambda service'
+    Value: !GetAtt AdminLambdaRole.Arn
+
+  EscalationPath:
+    Description: 'Privilege escalation path'
+    Value: 'r1 → assume r2 → assume r3 → update r4 trust policy to allow Lambda → r2 PassRole r4 to Lambda → invoke Lambda with admin privileges'

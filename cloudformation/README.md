@@ -39,6 +39,8 @@ Templates that require role assumption or user creation as an intermediate step 
 |------|-------------|-----------------|
 | `PE2-1-TransitiveAdminRoleAssumption.yaml` | Role chain leading to admin privileges | r1 → AssumeRole(r2) → AssumeRole(r3-admin) |
 | `PE2-2-TransitiveRolePermissionMutation.yaml` | Role chain enabling permission mutation on initial role | r1 → AssumeRole(r2) → AssumeRole(r3/r4) → PutRolePolicy/AttachRolePolicy(r1) |
+| `PE2-3-TransitiveLambdaPassRoleEscalation.yaml` | Role chain leading to PassRole + Lambda escalation | r1 → AssumeRole(r2) → PassRole(r3) to Lambda → Invoke with admin privileges |
+| `PE2-4-TransitiveSSMEscalation.yaml` | Role chain leading to SSM command execution on admin EC2 | r1 → AssumeRole(r2) → SSM:SendCommand to EC2 with r3 (admin) role |
 
 ### 3. Service PassRole Privilege Escalation (`3-service-passrole-escalation/`)
 
@@ -72,6 +74,7 @@ Templates that require multiple rounds of policy updates or modifications to ach
 | File | Description | Escalation Path |
 |------|-------------|-----------------|
 | `PE4-1-IterativeTrustPolicyModification.yaml` | Trust policy modification to enable blocked role assumption | r1 → assume r2 → assume r4 → update r5 trust policy → r2 assume r5 → access S3 bucket |
+| `PE4-2-IterativePassRoleEscalation.yaml` | Trust policy modification to enable PassRole to Lambda | r1 → assume r2 → assume r3 → update r4 trust policy to allow Lambda → r2 PassRole r4 to Lambda → invoke with admin privileges |
 
 ## Usage Instructions
 
