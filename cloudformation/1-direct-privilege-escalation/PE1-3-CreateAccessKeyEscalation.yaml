@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE1-3: CreateAccessKey Escalation - IAM user that can escalate privileges by creating access keys for a more privileged user'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe1-3'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # Target admin user - the user whose credentials will be stolen
+  AdminUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestPrefix}-admin-user'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+  # Attacker user that can create access keys for the admin user
+  PE13CreateAccessKeyUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestPrefix}-createaccesskey-user'
+      Policies:
+        - PolicyName: 'CreateAccessKeyOnAdmin'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:CreateAccessKey'
+                Resource: !GetAtt AdminUser.Arn
+
+Outputs:
+  AdminUserArn:
+    Description: 'ARN of the target admin user'
+    Value: !GetAtt AdminUser.Arn
+
+  CreateAccessKeyUserArn:
+    Description: 'ARN of the PE user that can create access keys for the admin user'
+    Value: !GetAtt PE13CreateAccessKeyUser.Arn

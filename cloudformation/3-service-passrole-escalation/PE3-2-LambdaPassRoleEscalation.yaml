@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE3-2: Lambda PassRole Escalation - r1 can pass r2 to Lambda function and invoke it to gain admin privileges'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe3-2'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # r2: Admin role that will be passed to Lambda function
+  AdminLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r2-admin-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+  # r1: Initial role with PassRole, CreateFunction, and InvokeFunction permissions
+  InitialRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r1-initial'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'PassRoleAndLambda'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:PassRole'
+                Resource: !GetAtt AdminLambdaRole.Arn
+              - Effect: Allow
+                Action:
+                  - 'lambda:CreateFunction'
+                  - 'lambda:InvokeFunction'
+                Resource: '*'
+
+Outputs:
+  InitialRoleArn:
+    Description: 'ARN of r1 - the initial role with PassRole and Lambda permissions'
+    Value: !GetAtt InitialRole.Arn
+
+  AdminLambdaRoleArn:
+    Description: 'ARN of r2 - the admin role that can be passed to Lambda functions'
+    Value: !GetAtt AdminLambdaRole.Arn
+
+  EscalationPath:
+    Description: 'How to escalate privileges'
+    Value: 'r1 creates a Lambda function with r2 (admin) role, invokes it to execute arbitrary code with admin privileges'

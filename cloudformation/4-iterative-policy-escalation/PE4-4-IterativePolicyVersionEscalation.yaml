@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE4-4: Iterative Policy Version Escalation - r1 assumes r2, r2 assumes r3, r3 can create new policy version with admin permissions for policy attached to r2'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe4-4'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # Managed policy with limited permissions (attached to r2)
+  # r3 will create a new version with admin permissions
+  LimitedManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub '${TestPrefix}-limited-policy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:GetObject'
+              - 's3:ListBucket'
+            Resource: '*'
+
+  # r3: Role that can create new policy versions
+  PolicyVersionCreatorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r3-policyversion-creator'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'CreatePolicyVersion'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'iam:CreatePolicyVersion'
+                  - 'iam:SetDefaultPolicyVersion'
+                Resource: !Ref LimitedManagedPolicy
+
+  # r2: Intermediate role with limited policy attached, can assume r3
+  IntermediateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r2-intermediate'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref LimitedManagedPolicy
+      Policies:
+        - PolicyName: 'AssumeR3'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource: !GetAtt PolicyVersionCreatorRole.Arn
+
+  # r1: Initial role (can only assume r2)
+  InitialRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r1-initial'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AssumeR2'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource: !GetAtt IntermediateRole.Arn
+
+Outputs:
+  InitialRoleArn:
+    Description: 'ARN of r1 - the initial role'
+    Value: !GetAtt InitialRole.Arn
+
+  IntermediateRoleArn:
+    Description: 'ARN of r2 - has limited managed policy attached'
+    Value: !GetAtt IntermediateRole.Arn
+
+  PolicyVersionCreatorRoleArn:
+    Description: 'ARN of r3 - can create new versions of the managed policy'
+    Value: !GetAtt PolicyVersionCreatorRole.Arn
+
+  LimitedManagedPolicyArn:
+    Description: 'ARN of the limited managed policy (target for version escalation)'
+    Value: !Ref LimitedManagedPolicy
+
+  EscalationPath:
+    Description: 'Privilege escalation path'
+    Value: 'r1 → assume r2 → assume r3 → create admin policy version → set as default → r2 now has admin permissions'

@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE3-4: Glue DevEndpoint Escalation - r1 can pass r2 to Glue DevEndpoint to gain admin privileges'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe3-4'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # r2: Admin role that will be passed to Glue DevEndpoint
+  AdminGlueRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r2-admin-glue-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+  # r1: Initial role with PassRole and Glue DevEndpoint permissions
+  InitialRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r1-initial'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'PassRoleAndGlue'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:PassRole'
+                Resource: !GetAtt AdminGlueRole.Arn
+              - Effect: Allow
+                Action:
+                  - 'glue:CreateDevEndpoint'
+                  - 'glue:GetDevEndpoint'
+                Resource: '*'
+
+Outputs:
+  InitialRoleArn:
+    Description: 'ARN of r1 - the initial role with PassRole and Glue permissions'
+    Value: !GetAtt InitialRole.Arn
+
+  AdminGlueRoleArn:
+    Description: 'ARN of r2 - the admin role that can be passed to Glue DevEndpoints'
+    Value: !GetAtt AdminGlueRole.Arn
+
+  EscalationPath:
+    Description: 'How to escalate privileges'
+    Value: 'r1 creates a Glue DevEndpoint with r2 (admin) role, then connects via SSH to execute commands with admin privileges'

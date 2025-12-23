@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE2-4: Transitive SSM Escalation - r1 can assume r2, r2 has SSM:SendCommand to EC2 instances with admin role attached'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe2-4'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # r3: Admin role attached to EC2 instances (target for SSM command execution)
+  AdminEC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r3-admin-ec2'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+
+  # Instance profile for EC2 instances with admin role
+  AdminEC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub '${TestPrefix}-r3-admin-ec2-profile'
+      Roles:
+        - !Ref AdminEC2Role
+
+  # r2: Intermediate role with SSM permissions
+  IntermediateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r2-intermediate'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'SSMCommandExecution'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ssm:SendCommand'
+                  - 'ssm:ListCommands'
+                  - 'ssm:ListCommandInvocations'
+                  - 'ssm:GetCommandInvocation'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'ec2:DescribeInstances'
+                Resource: '*'
+
+  # r1: Initial role (can only assume r2)
+  InitialRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TestPrefix}-r1-initial'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: 'AssumeR2'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sts:AssumeRole'
+                Resource: !GetAtt IntermediateRole.Arn
+
+Outputs:
+  InitialRoleArn:
+    Description: 'ARN of r1 - the initial role with limited privileges'
+    Value: !GetAtt InitialRole.Arn
+
+  IntermediateRoleArn:
+    Description: 'ARN of r2 - the intermediate role with SSM permissions'
+    Value: !GetAtt IntermediateRole.Arn
+
+  AdminEC2RoleArn:
+    Description: 'ARN of r3 - the admin role attached to EC2 instances'
+    Value: !GetAtt AdminEC2Role.Arn
+
+  AdminEC2InstanceProfileArn:
+    Description: 'ARN of the instance profile for EC2 with admin role'
+    Value: !GetAtt AdminEC2InstanceProfile.Arn
+
+  EscalationPath:
+    Description: 'Privilege escalation path'
+    Value: 'r1 → assume r2 → SSM:SendCommand to EC2 with r3 (admin) role → execute commands with admin privileges'

@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PE1-7: PutGroupPolicy Escalation - IAM user that can escalate privileges by adding inline policies to a group they belong to'
+
+Parameters:
+  TestPrefix:
+    Type: String
+    Default: 'pe1-7'
+    Description: 'Prefix for all resources created by this template'
+
+Resources:
+  # Group that the attacker belongs to
+  TargetGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: !Sub '${TestPrefix}-target-group'
+
+  # Attacker user that belongs to the group and can add inline policies to it
+  PE17PutGroupPolicyUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub '${TestPrefix}-putgrouppolicy-user'
+      Groups:
+        - !Ref TargetGroup
+      Policies:
+        - PolicyName: 'PutGroupPolicyOnOwnGroup'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'iam:PutGroupPolicy'
+                Resource: !GetAtt TargetGroup.Arn
+
+Outputs:
+  TargetGroupArn:
+    Description: 'ARN of the target group'
+    Value: !GetAtt TargetGroup.Arn
+
+  PutGroupPolicyUserArn:
+    Description: 'ARN of the PE user that can add inline policies to their group'
+    Value: !GetAtt PE17PutGroupPolicyUser.Arn
